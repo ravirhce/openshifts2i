@@ -3,7 +3,7 @@
 
 set -e
 
-source ${HTTPD_CONTAINER_SCRIPTS_PATH}/common.sh
+source ${HTTPD_CONTAINER_SCRIPTS_PATH}
 
 echo "---> Enabling s2i support in httpd24 image"
 
