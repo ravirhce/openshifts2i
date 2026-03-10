@@ -11,6 +11,10 @@ if [[ ! -f "${DOC_ROOT}/index.html" && -f "${APP_ROOT}/src/index.html" ]]; then
   DOC_ROOT="${APP_ROOT}/src"
 fi
 
+export APP_ROOT
+export PORT
+export DOC_ROOT
+
 echo "Environment:"
 echo "        DEV_MODE=${DEV_MODE:-false}"
 echo "        NODE_ENV=${NODE_ENV:-production}"
