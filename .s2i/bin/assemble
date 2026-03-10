@@ -1,23 +1,23 @@
-
 #!/bin/bash
+set -euo pipefail
 
-set -e
+export SERVER_PORT="${SERVER_PORT:-8081}"
 
-env SERVER_PORT=8081
-source ${HTTPD_CONTAINER_SCRIPTS_PATH}
+if [[ -f "${HTTPD_CONTAINER_SCRIPTS_PATH:-}/common.sh" ]]; then
+  # shellcheck source=/dev/null
+  source "${HTTPD_CONTAINER_SCRIPTS_PATH}/common.sh"
+else
+  echo "ERROR: common.sh not found under HTTPD_CONTAINER_SCRIPTS_PATH='${HTTPD_CONTAINER_SCRIPTS_PATH:-}'"
+  exit 1
+fi
 
 echo "---> Enabling s2i support in httpd24 image"
-
 config_s2i
 
 echo "---> Installing application source"
 cp -af /tmp/src/. ./
 rm -rf ./.hg ./.git ./.svn
-SERVER_PORT=8081
-# Fix source directory permissions
+
 fix-permissions ./
-
-process_extending_files ${HTTPD_APP_ROOT}/src/httpd-post-assemble/ ${HTTPD_CONTAINER_SCRIPTS_PATH}/post-assemble/
-
-# Fix source directory permissions
+process_extending_files "${HTTPD_APP_ROOT}/src/httpd-post-assemble/" "${HTTPD_CONTAINER_SCRIPTS_PATH}/post-assemble/"
 fix-permissions ./
