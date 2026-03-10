@@ -3,8 +3,13 @@ set -euo pipefail
 
 APP_ROOT="${APP_ROOT:-/opt/app-root/src}"
 PORT="${PORT:-8080}"
+DOC_ROOT="${DOC_ROOT:-${APP_ROOT}}"
 
 cd "${APP_ROOT}"
+
+if [[ ! -f "${DOC_ROOT}/index.html" && -f "${APP_ROOT}/src/index.html" ]]; then
+  DOC_ROOT="${APP_ROOT}/src"
+fi
 
 echo "Environment:"
 echo "        DEV_MODE=${DEV_MODE:-false}"
@@ -22,18 +27,18 @@ if command -v httpd >/dev/null 2>&1; then
 fi
 
 if command -v php >/dev/null 2>&1; then
-  echo "No package.json found. Launching php built-in server on port ${PORT}..."
-  exec php -S "0.0.0.0:${PORT}" -t "${APP_ROOT}"
+  echo "No package.json found. Launching php built-in server on port ${PORT} from ${DOC_ROOT}..."
+  exec php -S "0.0.0.0:${PORT}" -t "${DOC_ROOT}"
 fi
 
 if command -v node >/dev/null 2>&1; then
-  echo "No package.json found. Launching Node static file server on port ${PORT}..."
+  echo "No package.json found. Launching Node static file server on port ${PORT} from ${DOC_ROOT}..."
   exec node -e '
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
 
-const root = process.env.APP_ROOT || "/opt/app-root/src";
+const root = process.env.DOC_ROOT || process.env.APP_ROOT || "/opt/app-root/src";
 const port = Number(process.env.PORT || 8080);
 const resolvedRoot = path.resolve(root);
 const types = {
