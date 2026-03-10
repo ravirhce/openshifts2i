@@ -3,12 +3,37 @@ set -euo pipefail
 
 export SERVER_PORT="${SERVER_PORT:-8081}"
 
-if [[ -f "${HTTPD_CONTAINER_SCRIPTS_PATH:-}/common.sh" ]]; then
-  # shellcheck source=/dev/null
-  source "${HTTPD_CONTAINER_SCRIPTS_PATH}/common.sh"
+COMMON_SH=""
+
+if [[ -n "${HTTPD_CONTAINER_SCRIPTS_PATH:-}" && -f "${HTTPD_CONTAINER_SCRIPTS_PATH}/common.sh" ]]; then
+  COMMON_SH="${HTTPD_CONTAINER_SCRIPTS_PATH}/common.sh"
 else
-  echo "ERROR: common.sh not found under HTTPD_CONTAINER_SCRIPTS_PATH='${HTTPD_CONTAINER_SCRIPTS_PATH:-}'"
-  exit 1
+  for candidate in \
+    /usr/share/container-scripts/httpd/common.sh \
+    /usr/share/container-scripts/common.sh \
+    /usr/libexec/s2i/common.sh; do
+    if [[ -f "${candidate}" ]]; then
+      COMMON_SH="${candidate}"
+      HTTPD_CONTAINER_SCRIPTS_PATH="$(dirname "${candidate}")"
+      export HTTPD_CONTAINER_SCRIPTS_PATH
+      break
+    fi
+  done
+fi
+
+if [[ -n "${COMMON_SH}" ]]; then
+  # shellcheck source=/dev/null
+  source "${COMMON_SH}"
+else
+  echo "WARNING: common.sh not found. Continuing without httpd S2I helper functions."
+fi
+
+if ! command -v config_s2i >/dev/null 2>&1; then
+  config_s2i() { :; }
+fi
+
+if ! command -v process_extending_files >/dev/null 2>&1; then
+  process_extending_files() { :; }
 fi
 
 echo "---> Enabling s2i support in httpd24 image"
@@ -18,6 +43,12 @@ echo "---> Installing application source"
 cp -af /tmp/src/. ./
 rm -rf ./.hg ./.git ./.svn
 
+if ! command -v fix-permissions >/dev/null 2>&1; then
+  fix-permissions() {
+    chmod -R g+rwX "$1"
+  }
+fi
+
 fix-permissions ./
-process_extending_files "${HTTPD_APP_ROOT}/src/httpd-post-assemble/" "${HTTPD_CONTAINER_SCRIPTS_PATH}/post-assemble/"
+process_extending_files "${HTTPD_APP_ROOT:-$PWD}/src/httpd-post-assemble/" "${HTTPD_CONTAINER_SCRIPTS_PATH:-}/post-assemble/"
 fix-permissions ./
