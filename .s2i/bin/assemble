@@ -4,11 +4,22 @@ env SERVER_PORT=8081
 
 set -e
 
-source ${HTTPD_CONTAINER_SCRIPTS_PATH}/common.sh
+httpd_common_script=""
+httpd_s2i_available="false"
 
-echo "---> Enabling s2i support in httpd24 image"
+if [ -n "${HTTPD_CONTAINER_SCRIPTS_PATH:-}" ]; then
+  httpd_common_script="${HTTPD_CONTAINER_SCRIPTS_PATH}/common.sh"
+fi
 
-config_s2i
+if [ -n "${httpd_common_script}" ] && [ -f "${httpd_common_script}" ]; then
+  source "${httpd_common_script}"
+  httpd_s2i_available="true"
+
+  echo "---> Enabling s2i support in httpd24 image"
+  config_s2i
+else
+  echo "---> HTTPD container helpers not found; continuing with generic S2I assemble flow"
+fi
 
 ######## CUSTOMIZATION STARTS HERE ############
 
@@ -25,24 +36,30 @@ echo "Proudly served by Apache HTTP Server version $HTTPD_VERSION" >> ./info.htm
 
 ######## CUSTOMIZATION ENDS HERE ############
 
-if [ -d ./httpd-cfg ]; then
-  echo "---> Copying httpd configuration files..."
-  if [ "$(ls -A ./httpd-cfg/*.conf)" ]; then
-    cp -v ./httpd-cfg/*.conf "${HTTPD_CONFIGURATION_PATH}"
-    rm -rf ./httpd-cfg
-  fi
-else
-  if [ -d ./cfg ]; then
-    echo "---> Copying httpd configuration files from deprecated './cfg' directory, use './httpd-cfg' instead..."
-    if [ "$(ls -A ./cfg/*.conf)" ]; then
-      cp -v ./cfg/*.conf "${HTTPD_CONFIGURATION_PATH}"
-      rm -rf ./cfg
+if [ "${httpd_s2i_available}" = "true" ]; then
+  if [ -d ./httpd-cfg ]; then
+    echo "---> Copying httpd configuration files..."
+    if [ "$(ls -A ./httpd-cfg/*.conf)" ]; then
+      cp -v ./httpd-cfg/*.conf "${HTTPD_CONFIGURATION_PATH}"
+      rm -rf ./httpd-cfg
+    fi
+  else
+    if [ -d ./cfg ]; then
+      echo "---> Copying httpd configuration files from deprecated './cfg' directory, use './httpd-cfg' instead..."
+      if [ "$(ls -A ./cfg/*.conf)" ]; then
+        cp -v ./cfg/*.conf "${HTTPD_CONFIGURATION_PATH}"
+        rm -rf ./cfg
+      fi
     fi
   fi
+elif [ -d ./httpd-cfg ] || [ -d ./cfg ]; then
+  echo "---> Skipping httpd configuration copy because HTTPD helpers are unavailable"
 fi
 
 # Fix source directory permissions
-fix-permissions ./
+if command -v fix-permissions >/dev/null 2>&1; then
+  fix-permissions ./
+fi
 #cp /tmp/src/*.html  ./
 #echo "This is again customization ---- cprakash " > ./info.html
 
