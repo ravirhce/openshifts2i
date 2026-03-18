@@ -1,9 +1,81 @@
 #!/bin/bash
 export SERVER_PORT=8081
-source ${HTTPD_CONTAINER_SCRIPTS_PATH}/common.sh
 env SERVER_PORT=8081
 
-export HTTPD_RUN_BY_S2I=1
+httpd_common_script=""
 
-# Make Apache show 'debug' level logs during start up
-exec run-httpd -e debug $@
+if [ -n "${HTTPD_CONTAINER_SCRIPTS_PATH:-}" ]; then
+	httpd_common_script="${HTTPD_CONTAINER_SCRIPTS_PATH}/common.sh"
+fi
+
+if [ -n "${httpd_common_script}" ] && [ -f "${httpd_common_script}" ]; then
+	source "${httpd_common_script}"
+
+	export HTTPD_RUN_BY_S2I=1
+
+	exec run-httpd -e debug "$@"
+fi
+
+export PORT="${PORT:-${SERVER_PORT:-8081}}"
+
+echo "---> HTTPD container helpers not found; serving static content with Node.js on port ${PORT}"
+
+exec node <<'EOF'
+const fs = require('fs');
+const http = require('http');
+const path = require('path');
+
+const port = Number(process.env.PORT || '8081');
+const root = process.cwd();
+const mimeTypes = {
+	'.css': 'text/css; charset=utf-8',
+	'.gif': 'image/gif',
+	'.html': 'text/html; charset=utf-8',
+	'.ico': 'image/x-icon',
+	'.jpeg': 'image/jpeg',
+	'.jpg': 'image/jpeg',
+	'.js': 'application/javascript; charset=utf-8',
+	'.json': 'application/json; charset=utf-8',
+	'.png': 'image/png',
+	'.svg': 'image/svg+xml',
+	'.txt': 'text/plain; charset=utf-8'
+};
+
+function sendFile(filePath, res) {
+	const ext = path.extname(filePath).toLowerCase();
+	const contentType = mimeTypes[ext] || 'application/octet-stream';
+
+	res.writeHead(200, { 'Content-Type': contentType });
+	fs.createReadStream(filePath).pipe(res);
+}
+
+const server = http.createServer((req, res) => {
+	const requestPath = decodeURIComponent((req.url || '/').split('?')[0]);
+	const safePath = path.normalize(requestPath).replace(/^([.][.][/\\])+/, '');
+	let filePath = path.join(root, safePath);
+
+	if (filePath.endsWith(path.sep)) {
+		filePath = path.join(filePath, 'index.html');
+	}
+
+	fs.stat(filePath, (error, stats) => {
+		if (!error && stats.isDirectory()) {
+			filePath = path.join(filePath, 'index.html');
+		}
+
+		fs.stat(filePath, (finalError, finalStats) => {
+			if (finalError || !finalStats.isFile()) {
+				res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+				res.end('Not found');
+				return;
+			}
+
+			sendFile(filePath, res);
+		});
+	});
+});
+
+server.listen(port, '0.0.0.0', () => {
+	process.stdout.write(`Serving ${root} on port ${port}\n`);
+});
+EOF
