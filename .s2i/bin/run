@@ -1,5 +1,5 @@
 #!/bin/bash
-export SERVER_PORT="${SERVER_PORT:-8080}"
+export SERVER_PORT="${SERVER_PORT:-8081}"
 
 httpd_common_script=""
 
@@ -15,7 +15,7 @@ if [ -n "${httpd_common_script}" ] && [ -f "${httpd_common_script}" ]; then
 	exec run-httpd -e debug "$@"
 fi
 
-export PORT="${PORT:-${SERVER_PORT:-8080}}"
+export PORT="${PORT:-${SERVER_PORT:-8081}}"
 
 echo "---> HTTPD container helpers not found; serving static content with Node.js on port ${PORT}"
 
